@@ -54,7 +54,7 @@
       bulb.style.background = color.hexString;
 
       client.publish('home/light/color', `${rgb.r},${rgb.g},${rgb.b}`);
-      client.publish('home/light/brightness', Math.round(color.value));
+      client.publish('home/light/brightness', String(Math.round(color.value)));
     });
 
     // 開關按鈕
