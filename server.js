@@ -2,18 +2,9 @@ const express = require('express');
 const path = require('path');
 const app = express();
 
-// 伺服靜態檔案
-app.use(express.static(__dirname));
-
-// 處理所有路由都回 index.html
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// 接收顏色
+// API
 app.get('/rgb', (req, res) => {
   console.log('收到顏色:', req.query);
-  // 這裡之後可以轉發給 ESP32、MQTT、WebSocket…
   res.send('OK');
 });
 
@@ -22,6 +13,15 @@ app.get('/off', (req, res) => {
   res.send('OFF');
 });
 
+// 靜態檔案
+app.use(express.static(__dirname));
+
+// 所有其他路由導向 index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Railway 會給 PORT
 app.listen(process.env.PORT || 3000, () => {
-  console.log("Server running on PORT:", process.env.PORT || 3000);
+  console.log('Server running on PORT:', process.env.PORT || 3000);
 });
