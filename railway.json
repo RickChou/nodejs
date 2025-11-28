@@ -1,3 +1,4 @@
 {
-  "startCommand": "npm start"
+  "startCommand": "npm start",
+  "rootDirectory": "nodejs"
 }
