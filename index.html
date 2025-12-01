@@ -40,6 +40,27 @@
       console.error("MQTT 連線失敗：", err);
     });
 
+    // 關鍵：接收 ESP32 發來的開關指令
+  client.on('message', (topic, message) => {
+    const payload = message.toString();
+    console.log(`收到訊息 → ${topic}: ${payload}`);
+
+    if (topic === 'server_recv') {
+      if (payload === 'open relay') {
+        isOn = true;
+        powerBtn.textContent = '關燈';
+        const c = picker.color.rgb;
+        bulb.style.color = picker.color.hexString;
+        bulb.style.background = picker.color.hexString;
+      } else if (payload === 'close relay') {
+        isOn = false;
+        powerBtn.textContent = '開燈';
+        bulb.style.color = "#000";
+        bulb.style.background = "#333";
+      }
+    }
+  });
+    
     // 燈泡與色盤
     const bulb = document.getElementById('bulb');
     const picker = new iro.ColorPicker("#picker", { width: 320 });
