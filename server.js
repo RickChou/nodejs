@@ -1,62 +1,78 @@
 const express = require('express');
-const bodyParser = require('body-parser');
+const path = require('path');
 const mqtt = require('mqtt');
-
 const app = express();
-const port = 3000;
 
-// 解析 JSON body
-app.use(bodyParser.json());
-
-// MQTT 連線設定
-const mqttClient = mqtt.connect('wss://c15f9e95fc2e43a8bc949b3b4849d189.s1.eu.hivemq.cloud:8884/mqtt', {
+// MQTT 設定
+const client = mqtt.connect('wss://c15f9e95fc2e43a8bc949b3b4849d189.s1.eu.hivemq.cloud:8884/mqtt', {
   username: 'aaeonshm487',
   password: 'Aaeonm487'
 });
 
-mqttClient.on('connect', () => {
-  console.log('MQTT 連線成功！');
+let espState = {
+  power: false,
+  color: { r: 255, g: 255, b: 255 }
+};
+
+client.on('connect', () => {
+  console.log('MQTT connected');
+  client.subscribe('server_recv');  // 訂閱 ESP32 回傳狀態
 });
 
-mqttClient.on('error', (err) => {
-  console.error('MQTT 連線失敗：', err);
+client.on('message', (topic, message) => {
+  const payload = message.toString();
+  console.log(`收到 ESP32 訊息: ${topic} → ${payload}`);
+  
+  if (topic === 'server_recv') {
+    if (payload === 'relay open OK') {
+      espState.power = true;
+    } else if (payload === 'relay close OK') {
+      espState.power = false;
+    } else if (payload.startsWith('color:')) {
+      // 假設 ESP32 發 color:R,G,B
+      const parts = payload.slice(6).split(',');
+      espState.color = { r: +parts[0], g: +parts[1], b: +parts[2] };
+    }
+  }
 });
 
 // HTTP API
-// 開燈
-app.post('/api/on', (req, res) => {
-  mqttClient.publish('device_recv', 'open relay');
-  res.json({ status: 'ok', action: 'on' });
+app.get('/api/on', (req, res) => {
+  client.publish('device_recv', 'open relay');
+  espState.power = true;
+  res.json({ status: 'ok', power: true });
 });
 
-// 關燈
-app.post('/api/off', (req, res) => {
-  mqttClient.publish('device_recv', 'close relay');
-  res.json({ status: 'ok', action: 'off' });
+app.get('/api/off', (req, res) => {
+  client.publish('device_recv', 'close relay');
+  espState.power = false;
+  res.json({ status: 'ok', power: false });
 });
 
-// 設定顏色
-app.post('/api/color', (req, res) => {
-  const { r, g, b } = req.body;
-  if (r === undefined || g === undefined || b === undefined) {
-    return res.status(400).json({ error: '請提供 r, g, b' });
+app.get('/api/rgb', (req, res) => {
+  const { r, g, b } = req.query;
+  if (r !== undefined && g !== undefined && b !== undefined) {
+    client.publish('home/light/color', `${r},${g},${b}`);
+    espState.color = { r: +r, g: +g, b: +b };
+    res.json({ status: 'ok', color: espState.color });
+  } else {
+    res.status(400).json({ status: 'error', msg: '缺少 r/g/b' });
   }
-
-  mqttClient.publish('home/light/color', `${r},${g},${b}`);
-  res.json({ status: 'ok', color: { r, g, b } });
 });
 
-// 設定亮度 (0~100)
-app.post('/api/brightness', (req, res) => {
-  const { value } = req.body;
-  if (value === undefined || value < 0 || value > 100) {
-    return res.status(400).json({ error: 'value 需在 0~100' });
-  }
-
-  mqttClient.publish('home/light/brightness', String(value));
-  res.json({ status: 'ok', brightness: value });
+app.get('/api/status', (req, res) => {
+  res.json(espState);
 });
 
-app.listen(port, () => {
-  console.log(`HTTP API 服務已啟動，埠號 ${port}`);
+// 靜態網頁
+app.use(express.static(__dirname));
+
+// 所有其他路由導向 index.html
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// 監聽 PORT
+app.listen(process.env.PORT || 3000, () => {
+  console.log('Server running on PORT:', process.env.PORT || 3000);
 });
